@@ -177,9 +177,9 @@ if (CMAKE_PROJECT_NAME STREQUAL Urho3D)
     option (URHO3D_PCH "Enable PCH support" TRUE)
     cmake_dependent_option (URHO3D_DATABASE_ODBC "Enable Database support with ODBC, requires vendor-specific ODBC driver" FALSE "NOT IOS AND NOT ANDROID AND NOT WEB;NOT MSVC OR NOT MSVC_VERSION VERSION_LESS 1900" FALSE)
     option (URHO3D_DATABASE_SQLITE "Enable Database support with SQLite embedded")
-    cmake_dependent_option (URHO3D_MINIDUMPS "Enable minidumps on crash (VS only)" TRUE "MSVC" FALSE)
     option (URHO3D_FILEWATCHER "Enable filewatcher support" TRUE)
     option (URHO3D_TESTING "Enable testing support")
+    # By default this option is off (i.e. we use the MSVC dynamic runtime), this can be switched on if using Urho3D as a STATIC library
     cmake_dependent_option (URHO3D_STATIC_RUNTIME "Use static C/C++ runtime libraries and eliminate the need for runtime DLLs installation (VS only)" FALSE "MSVC" FALSE)
     if (((URHO3D_LUA AND NOT URHO3D_LUAJIT) OR URHO3D_DATABASE_SQLITE) AND NOT ANDROID AND NOT IOS AND NOT WEB AND NOT WIN32)
         # Find GNU Readline development library for Lua interpreter and SQLite's isql
@@ -232,7 +232,10 @@ else ()
         unset (EMSCRIPTEN_EMRUN_BROWSER CACHE)
     endif ()
 endif ()
-cmake_dependent_option (URHO3D_WIN32_CONSOLE "Use console main() as entry point when setting up Windows executable targets (Windows platform only)" FALSE "WIN32" FALSE)
+# Structured exception handling and minidumps on MSVC only
+cmake_dependent_option (URHO3D_MINIDUMPS "Enable minidumps on crash (VS only)" TRUE "MSVC" FALSE)
+# By default Windows platform setups main executable as Windows application with WinMain() as entry point
+cmake_dependent_option (URHO3D_WIN32_CONSOLE "Use console main() instead of WinMain() as entry point when setting up Windows executable targets (Windows platform only)" FALSE "WIN32" FALSE)
 cmake_dependent_option (URHO3D_MACOSX_BUNDLE "Use MACOSX_BUNDLE when setting up Mac OS X executable targets (Xcode native build only)" FALSE "XCODE AND NOT IOS" FALSE)
 if (CMAKE_CROSSCOMPILING AND NOT ANDROID AND NOT IOS)
     set (URHO3D_SCP_TO_TARGET "" CACHE STRING "Use scp to transfer executables to target system (non-Android cross-compiling build only), SSH digital key must be setup first for this to work, typical value has a pattern of usr@tgt:remote-loc")
@@ -337,37 +340,12 @@ if (URHO3D_TESTING)
     enable_testing ()
 endif ()
 
-# Enable coverity scan modeling
-if ($ENV{COVERITY_SCAN_BRANCH})
-    add_definitions (-DCOVERITY_SCAN_MODEL)
-endif ()
-
-# Enable/disable SIMD instruction set for STB image (do it here instead of in the STB CMakeLists.txt because the header files are exposed to Urho3D library user)
-if (NEON)
-    if (NOT XCODE)
-        add_definitions (-DSTBI_NEON)   # Cannot define it directly for Xcode due to universal binary support, we define it in the setup_target() macro instead for Xcode
+# Define preprocessor macros (for building the Urho3D library) based on the configured build options
+foreach (OPT URHO3D_MINIDUMPS URHO3D_WIN32_CONSOLE)
+    if (${OPT})
+        add_definitions (-D${OPT})
     endif ()
-elseif (NOT URHO3D_SSE)
-    add_definitions (-DSTBI_NO_SIMD)    # GCC/Clang/MinGW will switch this off automatically except MSVC, but no harm to make it explicit for all
-endif ()
-
-# Enable structured exception handling and minidumps on MSVC only.
-if (MSVC AND URHO3D_MINIDUMPS)
-    add_definitions (-DURHO3D_MINIDUMPS)
-endif ()
-
-# By default use the MSVC dynamic runtime. To eliminate the need to distribute the runtime installer,
-# this can be switched off if not using Urho3D as a shared library.
-if (MSVC AND URHO3D_STATIC_RUNTIME)
-    set (RELEASE_RUNTIME /MT)
-    set (DEBUG_RUNTIME /MTd)
-endif ()
-
-# By default Windows platform setups main executable as Windows application with WinMain() as entry point
-# this build option overrides the default to set the main executable as console application with main() as entry point instead
-if (URHO3D_WIN32_CONSOLE)
-    add_definitions (-DURHO3D_WIN32_CONSOLE)
-endif ()
+endforeach ()
 
 # Enable file watcher support for automatic resource reloads by default.
 if (URHO3D_FILEWATCHER)
@@ -397,11 +375,6 @@ endif ()
 # URHO3D_D3D11 overrides URHO3D_OPENGL option
 if (URHO3D_D3D11)
     set (URHO3D_OPENGL 0)
-endif ()
-
-# Add definitions for GLEW
-if (NOT ANDROID AND NOT ARM AND NOT WEB AND URHO3D_OPENGL)
-    add_definitions (-DGLEW_STATIC -DGLEW_NO_GLU)
 endif ()
 
 # Default library type is STATIC
@@ -564,6 +537,10 @@ endif ()
 if (MSVC)
     # VS-specific setup
     add_definitions (-D_CRT_SECURE_NO_WARNINGS)
+    if (URHO3D_STATIC_RUNTIME)
+        set (RELEASE_RUNTIME /MT)
+        set (DEBUG_RUNTIME /MTd)
+    endif ()
     # Note: All CMAKE_xxx_FLAGS variables are not in list context (although they should be)
     set (CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} ${DEBUG_RUNTIME}")
     set (CMAKE_C_FLAGS_RELWITHDEBINFO "${CMAKE_C_FLAGS_RELEASE} ${RELEASE_RUNTIME} /fp:fast /Zi /GS-")
@@ -711,7 +688,6 @@ else ()
                 if (URHO3D_SSE)
                     set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -mstackrealign")
                     set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mstackrealign")
-                    add_definitions (-DSTBI_MINGW_ENABLE_SSE2)
                 else ()
                     if (DEFINED ENV{TRAVIS})
                         # TODO: Remove this workaround when Travis CI VM has been migrated to Ubuntu 14.04 LTS
@@ -1039,15 +1015,7 @@ macro (setup_target)
         if (ATTRIBUTE_ALREADY_SET EQUAL -1)
             list (APPEND TARGET_PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH $<$<CONFIG:Debug>:YES>)
         endif ()
-        if (NEON)
-            if (IOS)
-                set (SDK iphoneos)
-            elseif (TVOS)
-                set (SDK appletvos)
-            endif ()
-            list (APPEND TARGET_PROPERTIES XCODE_ATTRIBUTE_OTHER_CFLAGS[sdk=${SDK}*] "-DSTBI_NEON $(OTHER_CFLAGS)")
-            list (APPEND TARGET_PROPERTIES XCODE_ATTRIBUTE_OTHER_CPLUSPLUSFLAGS[sdk=${SDK}*] "-DSTBI_NEON $(OTHER_CPLUSPLUSFLAGS)")
-        elseif (NOT URHO3D_SSE)
+        if (NOT URHO3D_SSE)
             # Nullify the Clang default so that it is consistent with GCC
             list (APPEND TARGET_PROPERTIES XCODE_ATTRIBUTE_OTHER_CFLAGS[arch=i386] "-mno-sse $(OTHER_CFLAGS)")
             list (APPEND TARGET_PROPERTIES XCODE_ATTRIBUTE_OTHER_CPLUSPLUSFLAGS[arch=i386] "-mno-sse $(OTHER_CPLUSPLUSFLAGS)")
