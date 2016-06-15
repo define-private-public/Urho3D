@@ -51,7 +51,7 @@ if (CMAKE_CROSSCOMPILING AND URHO3D_PACKAGING)
         SOURCE_DIR ${CMAKE_SOURCE_DIR}/Source/Tools/PackageTool
         CMAKE_ARGS -DDEST_RUNTIME_DIR=${CMAKE_BINARY_DIR}/bin/tool -DBAKED_CMAKE_SOURCE_DIR=${CMAKE_SOURCE_DIR} -DBAKED_CMAKE_BINARY_DIR=${CMAKE_BINARY_DIR}
         ${ALTERNATE_COMMAND})
-    if (CMAKE_HOST_WIN32 AND NOT URHO3D_MKLINK)
+    if (CMAKE_HOST_WIN32 AND NOT HAS_MKLINK)
         add_dependencies (PackageTool Urho3D)   # Ensure Urho3D headers are fresh when building PackageTool externally on Windows host system without MKLINK
     endif ()
     install (PROGRAMS ${CMAKE_BINARY_DIR}/bin/tool/PackageTool DESTINATION ${DEST_RUNTIME_DIR}/tool)
