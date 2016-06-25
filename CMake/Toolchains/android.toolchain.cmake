@@ -204,18 +204,17 @@
 cmake_minimum_required( VERSION 2.6.3 )
 
 # Urho3D: save the original values of CC and CXX environment variables before they get altered by CMake in the current process (and all the subprocesses later)
-set (SAVED_CC $ENV{CC})
-set (SAVED_CXX $ENV{CXX})
+if( DEFINED CMAKE_CROSSCOMPILING )
+ return()
+else()
+ set( SAVED_CC $ENV{CC} )
+ set( SAVED_CXX $ENV{CXX} )
+endif()
 
 # Urho3D: on Windows Cygwin-based NDK tools may fail in the linking phase with too long command line. Turn on response files to avoid this
 if( CMAKE_HOST_WIN32 )
  set( CMAKE_C_USE_RESPONSE_FILE_FOR_OBJECTS 1 )
  set( CMAKE_CXX_USE_RESPONSE_FILE_FOR_OBJECTS 1 )
-endif()
-
-if( DEFINED CMAKE_CROSSCOMPILING )
- # subsequent toolchain loading is not really needed
- return()
 endif()
 
 if( CMAKE_TOOLCHAIN_FILE )
