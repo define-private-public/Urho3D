@@ -179,15 +179,14 @@ set (SDL_CFLAGS)
 # restore back to that afterwards. For check_function_exists() to work in
 # Emscripten, this value must be at its default value.
 # Urho3D - also due to a CMake's try_compile() bug on iOS platform, the CMAKE_REQUIRED_FLAGS contains our SmileyHack-injection on iOS platform
-set(ORIG_CMAKE_REQUIRED_FLAGS ${CMAKE_REQUIRED_FLAGS})
+set (ORIG_CMAKE_REQUIRED_FLAGS ${CMAKE_REQUIRED_FLAGS})
 # Urho3D - save the original CMake global settings, do not leave them to chances
 set (ORIG_CMAKE_REQUIRED_INCLUDES ${CMAKE_REQUIRED_INCLUDES})
 set (ORIG_CMAKE_REQUIRED_LIBRARIES ${CMAKE_REQUIRED_LIBRARIES})
 
 if (RPI)
   # Urho3D - TODO - move the find_package(VideoCore REQUIRED) call from Urho3D common module to here later after we have refactored the library dependency handling
-  # Urho3D - bug fix - adjust the header search path for subsequent for pthread, EGL and OpenGLES2 checks
-  listtostr (VIDEOCORE_INCLUDE_DIRS VIDEO_RPI_INCLUDE_FLAGS "-I")
+  # Urho3D - bug fix - adjust the header search path for subsequent pthread, EGL and OpenGLES2 checks
   list (APPEND CMAKE_REQUIRED_INCLUDES ${VIDEOCORE_INCLUDE_DIRS})
 endif ()
 
@@ -970,7 +969,7 @@ elseif(UNIX)    # Urho3D - at this point both UNIX and UNIX_SYS should be equiva
     endif ()
     check_include_file("libudev.h" HAVE_LIBUDEV_H)
     if (HAVE_LIBUDEV_H AND UDEV_H_INCLUDE_DIRS)
-      include_directories (${UDEV_H_INCLUDE_DIRS})
+      include_directories (SYSTEM ${UDEV_H_INCLUDE_DIRS})
     endif ()
     # Urho3D - bug fix - dbus/dbus.h is installed under path suffix 'dbus-1.0', so the following find_path() is needed even when not cross-compiling
     find_path (DBUS_H_INCLUDE_DIRS NAMES dbus/dbus.h PATH_SUFFIXES dbus-1.0)
@@ -984,7 +983,7 @@ elseif(UNIX)    # Urho3D - at this point both UNIX and UNIX_SYS should be equiva
     set (CMAKE_REQUIRED_INCLUDES ${CMAKE_REQUIRED_INCLUDES_UDEV_DBUS_SAVED} ${DBUS_H_INCLUDE_DIRS} ${DBUS_ARCH_DEPS_H_INCLUDE_DIRS})
     check_include_file("dbus/dbus.h" HAVE_DBUS_DBUS_H)
     if (HAVE_DBUS_DBUS_H AND DBUS_H_INCLUDE_DIRS AND DBUS_ARCH_DEPS_H_INCLUDE_DIRS)
-      include_directories (${DBUS_H_INCLUDE_DIRS} ${DBUS_ARCH_DEPS_H_INCLUDE_DIRS})
+      include_directories (SYSTEM ${DBUS_H_INCLUDE_DIRS} ${DBUS_ARCH_DEPS_H_INCLUDE_DIRS})
     endif ()
     set (CMAKE_REQUIRED_INCLUDES ${CMAKE_REQUIRED_INCLUDES_UDEV_DBUS_SAVED})
 
