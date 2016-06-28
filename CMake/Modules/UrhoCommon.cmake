@@ -141,6 +141,10 @@ if (CMAKE_PROJECT_NAME STREQUAL Urho3D)
     # On Windows platform Direct3D11 can be optionally chosen
     # Using Direct3D11 on non-MSVC compiler may require copying and renaming Microsoft official libraries (.lib to .a), else link failures or non-functioning graphics may result
     cmake_dependent_option (URHO3D_D3D11 "Use Direct3D11 instead of Direct3D9 (Windows platform only); overrides URHO3D_OPENGL option" FALSE "WIN32" FALSE)
+    if (URHO3D_D3D11)
+        set (URHO3D_OPENGL 0)
+        unset (URHO3D_OPENGL CACHE)
+    endif ()
     if (NOT ARM)
         # It is not possible to turn SSE off on 64-bit MSVC and it appears it is also not able to do so safely on 64-bit GCC
         cmake_dependent_option (URHO3D_SSE "Enable SSE/SSE2 instruction set (32-bit Web and Intel platforms only, including Android on Intel Atom); default to true on Intel and false on Web platform; the effective SSE level could be higher, see also URHO3D_DEPLOYMENT_TARGET and CMAKE_OSX_DEPLOYMENT_TARGET build options" ${HAVE_SSE2} "NOT URHO3D_64BIT" TRUE)
@@ -170,6 +174,7 @@ if (CMAKE_PROJECT_NAME STREQUAL Urho3D)
     option (URHO3D_PCH "Enable PCH support" TRUE)
     cmake_dependent_option (URHO3D_DATABASE_ODBC "Enable Database support with ODBC, requires vendor-specific ODBC driver" FALSE "NOT IOS AND NOT ANDROID AND NOT WEB;NOT MSVC OR NOT MSVC_VERSION VERSION_LESS 1900" FALSE)
     option (URHO3D_DATABASE_SQLITE "Enable Database support with SQLite embedded")
+    # Enable file watcher support for automatic resource reloads by default.
     option (URHO3D_FILEWATCHER "Enable filewatcher support" TRUE)
     option (URHO3D_TESTING "Enable testing support")
     # By default this option is off (i.e. we use the MSVC dynamic runtime), this can be switched on if using Urho3D as a STATIC library
@@ -201,14 +206,15 @@ else ()
     endif ()
 endif ()
 option (URHO3D_PACKAGING "Enable resources packaging support, on Web platform default to 1, on other platforms default to 0" ${WEB})
+# Enable profiling by default. If disabled, autoprofileblocks become no-ops and the Profiler subsystem is not instantiated.
 option (URHO3D_PROFILING "Enable profiling support" TRUE)
+# Enable logging by default. If disabled, LOGXXXX macros become no-ops and the Log subsystem is not instantiated.
 option (URHO3D_LOGGING "Enable logging support" TRUE)
-# Emscripten thread support is yet experimental; default false
+# Enable threading by default, except for Emscripten because its thread support is yet experimental
 if (NOT WEB)
-    option (URHO3D_THREADING "Enable thread support, on Web platform default to 0, on other platforms default to 1" TRUE)
-else ()
-    option (URHO3D_THREADING "Enable thread support, on Web platform default to 0, on other platforms default to 1" FALSE)
+    set (THREADING_DEFAULT TRUE)
 endif ()
+option (URHO3D_THREADING "Enable thread support, on Web platform default to 0, on other platforms default to 1" ${THREADING_DEFAULT})
 if (URHO3D_TESTING)
     if (WEB)
         set (DEFAULT_TIMEOUT 10)
@@ -323,7 +329,7 @@ if (URHO3D_CLANG_TOOLS)
     set (URHO3D_PCH 0)
     set (URHO3D_LIB_TYPE SHARED)
     # Set build options that would maximise the AST of Urho3D library
-    foreach (OPT URHO3D_ANGELSCRIPT URHO3D_LUA URHO3D_FILEWATCHER URHO3D_PROFILING URHO3D_LOGGING URHO3D_NAVIGATION URHO3D_NETWORK URHO3D_PHYSICS URHO3D_URHO2D URHO3D_DATABASE_SQLITE)
+    foreach (OPT URHO3D_ANGELSCRIPT URHO3D_DATABASE_SQLITE URHO3D_FILEWATCHER URHO3D_LOGGING URHO3D_LUA URHO3D_NAVIGATION URHO3D_NETWORK URHO3D_PHYSICS URHO3D_PROFILING URHO3D_URHO2D)
         set (${OPT} 1)
     endforeach()
     foreach (OPT URHO3D_TESTING URHO3D_LUAJIT URHO3D_DATABASE_ODBC)
@@ -337,41 +343,11 @@ if (URHO3D_TESTING)
 endif ()
 
 # Define preprocessor macros (for building the Urho3D library) based on the configured build options
-foreach (OPT URHO3D_MINIDUMPS URHO3D_WIN32_CONSOLE)
+foreach (OPT URHO3D_FILEWATCHER URHO3D_LOGGING URHO3D_MINIDUMPS URHO3D_NAVIGATION URHO3D_NETWORK URHO3D_PHYSICS URHO3D_PROFILING URHO3D_THREADING URHO3D_URHO2D URHO3D_WIN32_CONSOLE)
     if (${OPT})
         add_definitions (-D${OPT})
     endif ()
 endforeach ()
-
-# Enable file watcher support for automatic resource reloads by default.
-if (URHO3D_FILEWATCHER)
-    add_definitions (-DURHO3D_FILEWATCHER)
-endif ()
-
-# Enable profiling by default. If disabled, autoprofileblocks become no-ops and the Profiler subsystem is not instantiated.
-if (URHO3D_PROFILING)
-    add_definitions (-DURHO3D_PROFILING)
-endif ()
-
-# Enable logging by default. If disabled, LOGXXXX macros become no-ops and the Log subsystem is not instantiated.
-if (URHO3D_LOGGING)
-    add_definitions (-DURHO3D_LOGGING)
-endif ()
-
-# Enable threading by default, except for Emscripten.
-if (URHO3D_THREADING)
-    add_definitions (-DURHO3D_THREADING)
-endif ()
-
-# Add definitions for Emscripten
-if (EMSCRIPTEN)
-    add_definitions (-DNO_POPEN)
-endif ()
-
-# URHO3D_D3D11 overrides URHO3D_OPENGL option
-if (URHO3D_D3D11)
-    set (URHO3D_OPENGL 0)
-endif ()
 
 # Default library type is STATIC
 if (URHO3D_LIB_TYPE)
@@ -411,26 +387,6 @@ if (URHO3D_LUA)
 endif ()
 if (URHO3D_LUA_RAW_SCRIPT_LOADER)
     add_definitions (-DURHO3D_LUA_RAW_SCRIPT_LOADER)
-endif ()
-
-# Add definition for Navigation
-if (URHO3D_NAVIGATION)
-    add_definitions (-DURHO3D_NAVIGATION)
-endif ()
-
-# Add definition for Network
-if (URHO3D_NETWORK)
-    add_definitions (-DURHO3D_NETWORK)
-endif ()
-
-# Add definition for Physics
-if (URHO3D_PHYSICS)
-    add_definitions (-DURHO3D_PHYSICS)
-endif ()
-
-# Add definition for Urho2D
-if (URHO3D_URHO2D)
-    add_definitions (-DURHO3D_URHO2D)
 endif ()
 
 # Add definition for Database
@@ -745,19 +701,17 @@ if (URHO3D_LUAJIT)
         set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${LUAJIT_EXE_LINKER_FLAGS}")
     endif ()
 endif ()
-
-include (UrhoMacros)
-
-# Set common binary output directory for all platforms if not already set (note that this module can be included in an external project which already has DEST_RUNTIME_DIR preset)
-if (NOT DEST_RUNTIME_DIR)
-    set_output_directories (${CMAKE_BINARY_DIR}/bin RUNTIME PDB)
-endif ()
-
 # Trim the leading white space in the compiler flags, if any
 string (REGEX REPLACE "^ +" "" CMAKE_C_FLAGS "${CMAKE_C_FLAGS}")
 string (REGEX REPLACE "^ +" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
 
-# Set common project structure for some platforms
+include (UrhoMacros)
+
+# Set common project structure for all platforms
+if (NOT DEST_RUNTIME_DIR)
+    # Set common binary output directory if not already set (note that this module can be included in an external project which may already have DEST_RUNTIME_DIR preset)
+    set_output_directories (${CMAKE_BINARY_DIR}/bin RUNTIME PDB)
+endif ()
 if (ANDROID)
     # Enable Android ndk-gdb
     if (ANDROID_NDK_GDB)
